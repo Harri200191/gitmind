@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Install script for commitgen
+# Install script for gitmind
 # This is a placeholder - customize as needed for your distribution method
 
 set -euo pipefail
 
-BINARY_NAME="commitgen"
+BINARY_NAME="gitmind"
 INSTALL_DIR="/usr/local/bin"
 
 # Check if Go is installed
