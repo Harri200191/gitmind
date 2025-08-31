@@ -1,0 +1,20 @@
+style: conventional  # conventional | plain
+max_summary_lines: 15
+model:
+  enabled: true
+  provider: llama.cpp
+  model_path: /path/to/your/model/Meta-Llama-3.1-8B.Q4_K_M.gguf
+  n_ctx: 8192
+  n_threads: 6
+  temperature: 0.2
+  top_p: 0.9
+  max_tokens: 256
+prompt:
+  preface: |
+    You are an assistant that writes precise Git commit messages.
+    Analyze the staged diff and produce a single-line subject and an optional wrapped body.
+  rules: |
+    - Prefer imperative mood ("fix", "add", "update").
+    - Keep subject ≤ 72 chars; wrap body at 72.
+    - Summarize intent, not code mechanics.
+    - If multiple logical changes, summarize concisely.
