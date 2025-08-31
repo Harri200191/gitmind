@@ -1,0 +1,16 @@
+project_name: commitgen
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: commitgen
+    main: ./cmd/commitgen
+    env:
+      - CGO_ENABLED=1
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    binary: commitgen
+archives:
+  - format: tar.gz
+    builds: [commitgen]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
