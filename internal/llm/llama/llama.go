@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/yourname/commitgen/internal/config"
+	"github.com/Harri200191/gitmind/internal/config"
 	// NOTE: Replace with actual llama.cpp Go bindings import
 	// "github.com/go-skynet/go-llama.cpp"
 )
