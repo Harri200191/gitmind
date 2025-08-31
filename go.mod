@@ -1,4 +1,4 @@
-module github.com/yourname/commitgen
+module github.com/Harri200191/gitmind
 
 go 1.22
 
