@@ -18,3 +18,18 @@ prompt:
     - Keep subject ≤ 72 chars; wrap body at 72.
     - Summarize intent, not code mechanics.
     - If multiple logical changes, summarize concisely.
+multi_commit:
+  enabled: true
+  max_clusters: 3
+  similarity_threshold: 0.7
+  prompt_user: true
+test_generation:
+  enabled: true
+  frameworks: ["testing", "testify"]
+  output_dir: "."
+  auto_stage: false
+security:
+  enabled: true
+  analyzers: ["gosec", "semgrep"]
+  block_on_high: false
+  include_in_msg: true
