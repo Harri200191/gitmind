@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yourname/commitgen/internal/config"
-	"github.com/yourname/commitgen/internal/diff"
-	"github.com/yourname/commitgen/internal/hook"
-	"github.com/yourname/commitgen/internal/llm"
-	"github.com/yourname/commitgen/internal/security"
-	"github.com/yourname/commitgen/internal/splitter"
-	"github.com/yourname/commitgen/internal/testgen"
+	"github.com/Harri200191/gitmind/internal/config"
+	"github.com/Harri200191/gitmind/internal/diff"
+	"github.com/Harri200191/gitmind/internal/hook"
+	"github.com/Harri200191/gitmind/internal/llm"
+	"github.com/Harri200191/gitmind/internal/security"
+	"github.com/Harri200191/gitmind/internal/splitter"
+	"github.com/Harri200191/gitmind/internal/testgen"
 )
 
 const version = "0.1.0"
