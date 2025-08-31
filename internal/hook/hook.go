@@ -34,9 +34,9 @@ func script() string {
 set -euo pipefail
 MSG_FILE="$1"
 # Source, SHA may be present as $2 $3 but we don't use them.
-if ! command -v commitgen >/dev/null 2>&1; then
+if ! command -v gitmind >/dev/null 2>&1; then
   exit 0 # do not block commit if not installed
 fi
-commitgen generate -f "$MSG_FILE"
+gitmind generate -f "$MSG_FILE"
 `)
 }
