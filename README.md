@@ -1,4 +1,4 @@
-# commitgen-go
+# gitmind
 
 Offline Git commit message generator with a `prepare-commit-msg` hook.
 
@@ -13,15 +13,15 @@ Offline Git commit message generator with a `prepare-commit-msg` hook.
 # 1) Build
 make build
 
-# 2) Install globally (adds to PATH as ./dist/commitgen)
+# 2) Install globally (adds to PATH as ./dist/gitmind)
 make install
 
 # 3) In a repo, install the hook
-commitgen install-hook
+gitmind install-hook
 
 # 4) Configure model (optional, for offline LLM)
 # Copy example config to your repo root or $HOME
-cp configs/.commitgen.yaml.example .commitgen.yaml
+cp configs/.gitmind.yaml.example .gitmind.yaml
 # edit MODEL_PATH and parameters
 
 # 5) Stage changes and commit
@@ -31,7 +31,7 @@ git commit  # hook will generate a message; edit/accept as usual
 
 ## Configuration
 
-Create `.commitgen.yaml` in the repo root or `$HOME` (repo overrides home):
+Create `.gitmind.yaml` in the repo root or `$HOME` (repo overrides home):
 
 ```yaml
 style: conventional  # conventional | plain
@@ -58,7 +58,7 @@ prompt:
 
 ## Heuristic Fallback
 
-If model isn't available, `commitgen` will:
+If model isn't available, `gitmind` will:
 
 * Detect change type (feat, fix, docs, chore, test, refactor) using simple heuristics.
 * Generate a concise subject (≤72 chars) from changed files & hunks.
@@ -66,7 +66,7 @@ If model isn't available, `commitgen` will:
 ## Uninstall
 
 ```bash
-commitgen uninstall-hook
+gitmind uninstall-hook
 ```
 
 ## Build Notes
