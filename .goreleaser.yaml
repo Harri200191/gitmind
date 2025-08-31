@@ -1,16 +1,16 @@
-project_name: commitgen
+project_name: gitmind
 before:
   hooks:
     - go mod tidy
 builds:
-  - id: commitgen
-    main: ./cmd/commitgen
+  - id: gitmind
+    main: ./cmd/gitmind
     env:
       - CGO_ENABLED=1
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
-    binary: commitgen
+    binary: gitmind
 archives:
   - format: tar.gz
-    builds: [commitgen]
+    builds: [gitmind]
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
