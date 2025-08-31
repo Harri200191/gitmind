@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yourname/commitgen/internal/config"
-	"github.com/yourname/commitgen/internal/llm/llama"
+	"github.com/Harri200191/gitmind/internal/config"
+	"github.com/Harri200191/gitmind/internal/llm/llama"
 )
 
 func Doctor(cfg config.Config) (bool, string) {
