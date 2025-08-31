@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/yourname/commitgen/internal/config"
+	"github.com/Harri200191/gitmind/internal/config"
 )
 
 func Staged() (string, error) {
