@@ -18,7 +18,7 @@ You can download these models from:
 
 ## Configuration
 
-After downloading a model, update your `.commitgen.yaml` file:
+After downloading a model, update your `.gitmind.yaml` file:
 
 ```yaml
 model:
