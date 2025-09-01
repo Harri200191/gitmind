@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 MSG_FILE="$1"
-# Source, SHA may be present as $2 $3 but we don't use them.
+
 if ! command -v gitmind >/dev/null 2>&1; then
-  exit 0 # do not block commit if not installed
+    echo "⚠️  gitmind not found, skipping commit message generation"
+    exit 0
 fi
-gitmind generate -f "$MSG_FILE"
+
+if ! gitmind generate -f "$MSG_FILE"; then
+    echo "❌ gitmind failed to generate commit message" >&2
+    exit 1
+fi
