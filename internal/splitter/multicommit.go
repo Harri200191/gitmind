@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
- 
+
 	"github.com/Harri200191/gitmind/internal/config"
 )
 
@@ -191,39 +191,168 @@ func (mcm *MultiCommitManager) promptUserForConfirmation(proposals []CommitPropo
 
 // stashCurrentChanges temporarily stores the current staging area
 func (mcm *MultiCommitManager) stashCurrentChanges() error {
-	// Create a temporary stash
-	cmd := exec.Command("git", "stash", "push", "--staged", "--message", "gitmind-multi-commit-temp")
-	return cmd.Run()
+	// First, check if we have any staged changes
+	cmd := exec.Command("git", "diff", "--cached", "--quiet")
+	if err := cmd.Run(); err == nil {
+		// No staged changes, nothing to stash
+		return nil
+	}
+
+	// Try to stash staged changes only first
+	cmd = exec.Command("git", "stash", "push", "--staged", "--message", "gitmind-multi-commit-temp")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// If stash fails, try alternative approach: save index to temporary branch
+		fmt.Printf("Stash failed, using temporary branch approach: %s\n", string(output))
+		return mcm.stashUsingTempBranch()
+	}
+
+	fmt.Printf("Stashed changes successfully\n")
+	return nil
 }
 
-// restoreChanges restores the staging area from stash
+// stashUsingTempBranch creates a temporary commit to save current state
+func (mcm *MultiCommitManager) stashUsingTempBranch() error {
+	// Create a temporary commit on current branch to save staged changes
+	cmd := exec.Command("git", "commit", "-m", "gitmind: temporary commit for multi-commit splitting (will be reset)")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create temp commit: %v", err)
+	}
+
+	// Store the commit hash for later
+	cmd = exec.Command("git", "rev-parse", "HEAD")
+	tempCommitHash, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get temp commit hash: %v", err)
+	}
+
+	// Reset to previous commit to clear staging area
+	cmd = exec.Command("git", "reset", "--soft", "HEAD~1")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to reset to clear staging: %v", err)
+	}
+
+	// Store temp commit hash for restoration
+	// We'll use git notes to store this metadata
+	tempCommitHashStr := strings.TrimSpace(string(tempCommitHash))
+	cmd = exec.Command("git", "notes", "add", "-m", "gitmind-temp-commit:"+tempCommitHashStr, "HEAD")
+	cmd.Run() // Ignore errors
+
+	return nil
+}
+
+// restoreChanges restores the staging area from stash or temp commit
 func (mcm *MultiCommitManager) restoreChanges() error {
-	// Pop the temporary stash
-	cmd := exec.Command("git", "stash", "pop")
-	return cmd.Run()
+	// First try to pop stash if it exists
+	cmd := exec.Command("git", "stash", "list")
+	output, err := cmd.Output()
+	if err == nil && strings.Contains(string(output), "gitmind-multi-commit-temp") {
+		// Stash exists, pop it
+		cmd = exec.Command("git", "stash", "pop")
+		return cmd.Run()
+	}
+
+	// Check if we have temp commit info in git notes
+	cmd = exec.Command("git", "notes", "show", "HEAD")
+	notesOutput, err := cmd.Output()
+	if err == nil && strings.Contains(string(notesOutput), "gitmind-temp-commit:") {
+		return mcm.restoreFromTempBranch()
+	}
+
+	// Nothing to restore
+	return nil
+}
+
+// restoreFromTempBranch restores changes from temporary commit using git notes
+func (mcm *MultiCommitManager) restoreFromTempBranch() error {
+	// Check if we have stored temp commit hash in notes
+	cmd := exec.Command("git", "notes", "show", "HEAD")
+	notesOutput, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("no temp commit found in notes: %v", err)
+	}
+
+	notesStr := strings.TrimSpace(string(notesOutput))
+	if !strings.HasPrefix(notesStr, "gitmind-temp-commit:") {
+		return fmt.Errorf("invalid temp commit note format")
+	}
+
+	tempCommitHash := strings.TrimPrefix(notesStr, "gitmind-temp-commit:")
+
+	// Use git cherry-pick to restore the temp commit changes to staging
+	cmd = exec.Command("git", "cherry-pick", "-n", tempCommitHash)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to cherry-pick temp commit: %v", err)
+	}
+
+	// Clean up the note
+	cmd = exec.Command("git", "notes", "remove", "HEAD")
+	cmd.Run() // Ignore errors
+
+	return nil
 }
 
 // createCommit creates a single commit for the given proposal
 func (mcm *MultiCommitManager) createCommit(proposal CommitProposal, index, total int) error {
+	// First, restore all changes to staging area
+	if err := mcm.restoreChanges(); err != nil {
+		return fmt.Errorf("failed to restore changes: %v", err)
+	}
+
+	// Reset staging area to clean state
+	cmd := exec.Command("git", "reset")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to reset staging area: %v", err)
+	}
+
 	// Stage only the files for this commit
 	for _, file := range proposal.Files {
 		if err := mcm.stageFile(file); err != nil {
-			return fmt.Errorf("failed to stage file %s: %v", file, err)
+			// If staging fails (file might be deleted), try to handle it gracefully
+			fmt.Printf("Warning: failed to stage file %s: %v\n", file, err)
+			continue
 		}
 	}
 
+	// Check if we have anything staged
+	cmd = exec.Command("git", "diff", "--cached", "--quiet")
+	if err := cmd.Run(); err == nil {
+		fmt.Printf("Warning: No changes staged for commit %d/%d, skipping\n", index, total)
+		return nil
+	}
+
 	// Create the commit
-	cmd := exec.Command("git", "commit", "-m", proposal.Message)
+	cmd = exec.Command("git", "commit", "-m", proposal.Message)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git commit failed: %v", err)
 	}
 
 	fmt.Printf("✓ Created commit %d/%d: %s\n", index, total, proposal.Message)
+
+	// For subsequent commits, we need to stash the remaining changes again
+	if index < total {
+		if err := mcm.stashCurrentChanges(); err != nil {
+			return fmt.Errorf("failed to stash remaining changes: %v", err)
+		}
+	}
+
 	return nil
 }
 
-// stageFile stages a specific file
+// stageFile stages a specific file with error handling
 func (mcm *MultiCommitManager) stageFile(file string) error {
+	// Check if file exists before trying to stage
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		// File doesn't exist, try to stage as deleted
+		cmd := exec.Command("git", "rm", file)
+		if err := cmd.Run(); err != nil {
+			// If rm fails, the file might already be tracked as deleted
+			return fmt.Errorf("file %s not found and cannot be removed: %v", file, err)
+		}
+		return nil
+	}
+
+	// File exists, stage normally
 	cmd := exec.Command("git", "add", file)
 	return cmd.Run()
 }
