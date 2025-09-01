@@ -121,7 +121,7 @@ sudo mv gitmind /usr/local/bin/
 **Verify installation:**
 ```bash
 gitmind version
-# Should output: gitmind v1.0
+# Should output: gitmind <version>
 ```
 
 ### Method 2: Build from Source
