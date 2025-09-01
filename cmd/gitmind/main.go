@@ -17,7 +17,7 @@ import (
 	"github.com/Harri200191/gitmind/internal/testgen"
 )
 
-const version="v1.0"
+const version = "1.0"
 
 func main() {
 	log.SetFlags(0)
@@ -60,7 +60,7 @@ Usage:
   gitmind generate -f <path>        Generate a message into commit-msg file (hook calls this)
   gitmind multi-commit              Analyze and split staged changes into multiple commits
   gitmind suggest-tests             Generate unit tests for changed functions
-  gitmind security-check            Run security analysis on staged changes
+  gitmind security-check            Run multi-language security analysis on staged changes
   gitmind doctor                    Check model/config availability
   gitmind version                   Print version
 `, version)
@@ -75,7 +75,7 @@ func cmdInstallHook(args []string) {
 	if err := hook.Install(repoRoot); err != nil {
 		log.Fatal(err)
 	}
-	
+
 	fmt.Println("Installed prepare-commit-msg hook.")
 }
 
@@ -92,6 +92,7 @@ func cmdUninstallHook(args []string) {
 
 func cmdDoctor() {
 	cfg := config.Load()
+
 	ok, info := llm.Doctor(cfg)
 	if ok {
 		fmt.Println("LLM ready:", info)
@@ -197,7 +198,7 @@ func findRepoRoot() (string, error) {
 
 func cmdMultiCommit(args []string) {
 	fs := flag.NewFlagSet("multi-commit", flag.ExitOnError)
-	interactive := fs.Bool("interactive", false, "interactive mode for editing proposals")
+	interactive := fs.Bool("interactive", true, "interactive mode for editing proposals")
 	_ = fs.Parse(args)
 
 	cfg := config.Load()
@@ -289,8 +290,8 @@ func cmdSuggestTests(args []string) {
 
 func cmdSecurityCheck(args []string) {
 	fs := flag.NewFlagSet("security-check", flag.ExitOnError)
-	blockOnHigh := fs.Bool("block", false, "block if high-severity issues found")
-	verbose := fs.Bool("verbose", false, "show detailed findings")
+	blockOnHigh := fs.Bool("block", true, "block if high-severity issues found")
+	verbose := fs.Bool("verbose", true, "show detailed findings")
 	_ = fs.Parse(args)
 
 	cfg := config.Load()
