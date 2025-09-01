@@ -1,5 +1,5 @@
 APP_NAME := gitmind
-VERSION := 1.0
+VERSION := 1.1
 BUILD_DIR := bin
 DEB_DIR := debuild
 ARCHS := amd64 arm arm64

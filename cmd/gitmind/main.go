@@ -17,7 +17,7 @@ import (
 	"github.com/Harri200191/gitmind/internal/testgen"
 )
 
-const version = "1.0"
+const version = "1.1"
 
 func main() {
 	log.SetFlags(0)
