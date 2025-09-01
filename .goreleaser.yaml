@@ -1,3 +1,4 @@
+#  go releaser
 project_name: gitmind
 before:
   hooks:
