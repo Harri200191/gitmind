@@ -1,0 +1,7 @@
+Package: gitmind
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: arm64
+Maintainer: Haris Rehman <harisrehmanchugtai@gmail.com>
+Description: GPT-friendly directory summarizer and prompt generator.
