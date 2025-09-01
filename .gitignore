@@ -35,7 +35,4 @@ go.work.sum
 !models/README.md
 
 # local config
-.gitmind.yaml
-
-hf-env
-gpt-oss-20b
+.gitmind.yaml 
