@@ -10,14 +10,24 @@ const hookName = "prepare-commit-msg"
 
 func Install(repoRoot string) error {
 	hooksDir := filepath.Join(repoRoot, ".git", "hooks")
+
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
 		return err
 	}
+	
 	hookPath := filepath.Join(hooksDir, hookName)
 	content := script()
+	
 	if err := os.WriteFile(hookPath, []byte(content), 0755); err != nil {
 		return err
 	}
+
+	fmt.Printf("✅ Installed %s hook\n", hookName)
+ 
+	if err := os.Chmod(hookPath, 0755); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -30,13 +40,18 @@ func Uninstall(repoRoot string) error {
 }
 
 func script() string {
-	return fmt.Sprintf(`#!/usr/bin/env bash
+    return `#!/usr/bin/env bash
 set -euo pipefail
 MSG_FILE="$1"
-# Source, SHA may be present as $2 $3 but we don't use them.
+
 if ! command -v gitmind >/dev/null 2>&1; then
-  exit 0 # do not block commit if not installed
+    echo "⚠️  gitmind not found, skipping commit message generation"
+    exit 0
 fi
-gitmind generate -f "$MSG_FILE"
-`)
+
+if ! gitmind generate -f "$MSG_FILE"; then
+    echo "❌ gitmind failed to generate commit message" >&2
+    exit 1
+fi
+`
 }
