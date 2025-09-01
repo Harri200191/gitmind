@@ -1,35 +1,68 @@
 style: conventional  # conventional | plain
 max_summary_lines: 15
+
+# LLM Configuration - UPDATED FOR YOUR MODEL
 model:
-  enabled: true
-  provider: llama.cpp
-  model_path: /path/to/your/model/Meta-Llama-3.1-8B.Q4_K_M.gguf
+  enabled: true  # Enable the model
+  provider: ollama  # Use Ollama instead of llama.cpp
+  model_path: "gpt-oss:20b"  # Your Ollama model name
   n_ctx: 8192
   n_threads: 6
   temperature: 0.2
   top_p: 0.9
   max_tokens: 256
+ 
+# Commit Message Generation Prompts
 prompt:
   preface: |
-    You are an assistant that writes precise Git commit messages.
-    Analyze the staged diff and produce a single-line subject and an optional wrapped body.
+    You are an assistant that writes clear and natural Git commit messages.
+    Analyze the staged diff and produce:
+    - A single-line subject (imperative mood, ≤ 72 chars).
+    - A short body (≤ 5 lines) that explains intent in plain human language.
+    Example format to follow:
+
+    Example:
+      update makefile to support multi-arch builds
+
+      → include binaries for arm, arm64, debian and windows
+      → add a 'make clean' target to remove built binaries
+      → improve packaging rules for deb builds
   rules: |
-    - Prefer imperative mood ("fix", "add", "update").
-    - Keep subject ≤ 72 chars; wrap body at 72.
-    - Summarize intent, not code mechanics.
-    - If multiple logical changes, summarize concisely.
+    - Subject: imperative mood ("fix", "add", "update").
+    - Body: concise, wrap lines at 72 chars.
+    - Prefer describing intent/impact over code mechanics.
+    - Use bullet points (→ or -) for multiple changes.
+    - Overall message must not exceed 5 lines total (subject + body).
+    - Tone: natural, like a teammate summarizing what changed.
+
+
+# Multi-Commit Splitter (NOVEL FEATURE)
 multi_commit:
-  enabled: true
+  enabled: true  # Enable multi-commit splitting
   max_clusters: 3
   similarity_threshold: 0.7
-  prompt_user: true
+  prompt_user: true  # Ask for confirmation before splitting
+
+# Auto Test Generation (HIGHLY USEFUL)
 test_generation:
-  enabled: true
-  frameworks: ["testing", "testify"]
-  output_dir: "."
-  auto_stage: false
+  enabled: true  # Enable auto-test generation
+  frameworks: ["testing", "testify"]  # Go testing frameworks to use
+  output_dir: "."  # Directory to place generated test files
+  auto_stage: false  # Automatically stage generated test files
+
+# Security Analysis (MULTI-LANGUAGE SUPPORT)
 security:
-  enabled: true
-  analyzers: ["gosec", "semgrep"]
-  block_on_high: false
-  include_in_msg: true
+  enabled: true  # Enable security scanning
+  # Multi-language analyzers available:
+  # Go: gosec
+  # Python: bandit, safety
+  # JavaScript/TypeScript: eslint-security
+  # Ruby: brakeman
+  # Java: spotbugs
+  # PHP: psalm, phpstan
+  # C/C++: cppcheck, flawfinder
+  # Rust: cargo-audit, clippy
+  # Multi-language: semgrep, securecodewarrior
+  analyzers: ["gosec", "bandit", "eslint-security", "semgrep", "safety", "brakeman", "cppcheck", "cargo-audit"]  
+  block_on_high: false  # Block commits with high-severity security issues
+  include_in_msg: true  # Include security notes in commit messages
