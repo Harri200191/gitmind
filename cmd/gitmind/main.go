@@ -17,7 +17,7 @@ import (
 	"github.com/Harri200191/gitmind/internal/testgen"
 )
 
-const version = "0.1.0"
+const version="v1.0"
 
 func main() {
 	log.SetFlags(0)
@@ -71,9 +71,11 @@ func cmdInstallHook(args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	if err := hook.Install(repoRoot); err != nil {
 		log.Fatal(err)
 	}
+	
 	fmt.Println("Installed prepare-commit-msg hook.")
 }
 
