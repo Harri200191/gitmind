@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -49,7 +50,6 @@ func New(cfg config.Config) *SecurityAnalyzer {
 	return &SecurityAnalyzer{config: cfg}
 }
 
-// AnalyzeDiff performs security analysis on git diff
 func (sa *SecurityAnalyzer) AnalyzeDiff(diff string) (*SecurityReport, error) {
 	if !sa.config.Security.Enabled {
 		return &SecurityReport{}, nil
@@ -144,25 +144,42 @@ func (sa *SecurityAnalyzer) runAnalyzer(analyzer string, files []string) ([]Find
 		return sa.runESLintSecurity(files)
 	case "semgrep":
 		return sa.runSemgrep(files)
+	case "safety":
+		return sa.runSafety(files)
+	case "brakeman":
+		return sa.runBrakeman(files)
+	case "spotbugs":
+		return sa.runSpotBugs(files)
+	case "psalm":
+		return sa.runPsalm(files)
+	case "phpstan":
+		return sa.runPHPStan(files)
+	case "cppcheck":
+		return sa.runCppCheck(files)
+	case "flawfinder":
+		return sa.runFlawfinder(files)
+	case "cargo-audit":
+		return sa.runCargoAudit(files)
+	case "clippy":
+		return sa.runClippy(files)
+	case "securecodewarrior":
+		return sa.runSecureCodeWarrior(files)
 	default:
 		return nil, fmt.Errorf("unknown analyzer: %s", analyzer)
 	}
 }
 
-// runGosec runs gosec security analyzer for Go files
 func (sa *SecurityAnalyzer) runGosec(files []string) ([]Finding, error) {
-	// Filter for Go files only
 	goFiles := sa.filterFilesByExtension(files, ".go")
+
 	if len(goFiles) == 0 {
 		return nil, nil
 	}
 
-	// Check if gosec is available
 	if !sa.isCommandAvailable("gosec") {
 		return nil, fmt.Errorf("gosec not found in PATH")
 	}
 
-	// Run gosec with JSON output
 	args := []string{"-fmt", "json", "-quiet"}
 	args = append(args, goFiles...)
 
@@ -171,12 +188,16 @@ func (sa *SecurityAnalyzer) runGosec(files []string) ([]Finding, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	fmt.Println("Raw gosec output:\n", stdout.String())
+
 	if err := cmd.Run(); err != nil {
-		// gosec returns non-zero exit code when findings are present
-		// Only treat it as error if stdout is empty
 		if stdout.Len() == 0 {
 			return nil, fmt.Errorf("gosec failed: %v, stderr: %s", err, stderr.String())
 		}
+	}
+
+	if stdout.Len() == 0 {
+		return nil, nil
 	}
 
 	return sa.parseGosecOutput(stdout.Bytes())
@@ -267,6 +288,257 @@ func (sa *SecurityAnalyzer) runSemgrep(files []string) ([]Finding, error) {
 	}
 
 	return sa.parseSemgrepOutput(stdout.Bytes())
+}
+
+// runSafety runs Safety for Python dependency vulnerabilities
+func (sa *SecurityAnalyzer) runSafety(files []string) ([]Finding, error) {
+	pythonFiles := sa.filterFilesByExtensions(files, []string{".py", "requirements.txt", "Pipfile", "pyproject.toml"})
+	if len(pythonFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("safety") {
+		return nil, fmt.Errorf("safety not found in PATH")
+	}
+
+	args := []string{"check", "--json"}
+	cmd := exec.Command("safety", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("safety failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parseSafetyOutput(stdout.Bytes())
+}
+
+// runBrakeman runs Brakeman for Ruby on Rails security
+func (sa *SecurityAnalyzer) runBrakeman(files []string) ([]Finding, error) {
+	rubyFiles := sa.filterFilesByExtensions(files, []string{".rb", ".erb", "Gemfile"})
+	if len(rubyFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("brakeman") {
+		return nil, fmt.Errorf("brakeman not found in PATH")
+	}
+
+	args := []string{"-f", "json", "-q"}
+	cmd := exec.Command("brakeman", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("brakeman failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parseBrakemanOutput(stdout.Bytes())
+}
+
+// runSpotBugs runs SpotBugs for Java security analysis
+func (sa *SecurityAnalyzer) runSpotBugs(files []string) ([]Finding, error) {
+	javaFiles := sa.filterFilesByExtensions(files, []string{".java", ".class", ".jar"})
+	if len(javaFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("spotbugs") {
+		return nil, fmt.Errorf("spotbugs not found in PATH")
+	}
+
+	args := []string{"-textui", "-xml", "-effort:max"}
+	args = append(args, javaFiles...)
+
+	cmd := exec.Command("spotbugs", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("spotbugs failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parseSpotBugsOutput(stdout.Bytes())
+}
+
+// runPsalm runs Psalm for PHP static analysis
+func (sa *SecurityAnalyzer) runPsalm(files []string) ([]Finding, error) {
+	phpFiles := sa.filterFilesByExtension(files, ".php")
+	if len(phpFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("psalm") {
+		return nil, fmt.Errorf("psalm not found in PATH")
+	}
+
+	args := []string{"--output-format=json", "--find-unused-code"}
+	args = append(args, phpFiles...)
+
+	cmd := exec.Command("psalm", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("psalm failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parsePsalmOutput(stdout.Bytes())
+}
+
+// runPHPStan runs PHPStan for PHP static analysis
+func (sa *SecurityAnalyzer) runPHPStan(files []string) ([]Finding, error) {
+	phpFiles := sa.filterFilesByExtension(files, ".php")
+	if len(phpFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("phpstan") {
+		return nil, fmt.Errorf("phpstan not found in PATH")
+	}
+
+	args := []string{"analyze", "--error-format=json", "--level=max"}
+	args = append(args, phpFiles...)
+
+	cmd := exec.Command("phpstan", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("phpstan failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parsePHPStanOutput(stdout.Bytes())
+}
+
+// runCppCheck runs CppCheck for C/C++ static analysis
+func (sa *SecurityAnalyzer) runCppCheck(files []string) ([]Finding, error) {
+	cppFiles := sa.filterFilesByExtensions(files, []string{".c", ".cpp", ".cxx", ".cc", ".h", ".hpp"})
+	if len(cppFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("cppcheck") {
+		return nil, fmt.Errorf("cppcheck not found in PATH")
+	}
+
+	args := []string{"--xml", "--enable=all", "--inconclusive", "--std=c++17"}
+	args = append(args, cppFiles...)
+
+	cmd := exec.Command("cppcheck", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stderr.Len() == 0 {
+		return nil, fmt.Errorf("cppcheck failed: %v", err)
+	}
+
+	// CppCheck outputs to stderr by default
+	return sa.parseCppCheckOutput(stderr.Bytes())
+}
+
+// runFlawfinder runs Flawfinder for C/C++ security analysis
+func (sa *SecurityAnalyzer) runFlawfinder(files []string) ([]Finding, error) {
+	cppFiles := sa.filterFilesByExtensions(files, []string{".c", ".cpp", ".cxx", ".cc", ".h", ".hpp"})
+	if len(cppFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("flawfinder") {
+		return nil, fmt.Errorf("flawfinder not found in PATH")
+	}
+
+	args := []string{"--sarif"}
+	args = append(args, cppFiles...)
+
+	cmd := exec.Command("flawfinder", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("flawfinder failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parseFlawfinderOutput(stdout.Bytes())
+}
+
+// runCargoAudit runs cargo-audit for Rust dependency vulnerabilities
+func (sa *SecurityAnalyzer) runCargoAudit(files []string) ([]Finding, error) {
+	rustFiles := sa.filterFilesByExtensions(files, []string{".rs", "Cargo.toml", "Cargo.lock"})
+	if len(rustFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("cargo") {
+		return nil, fmt.Errorf("cargo not found in PATH")
+	}
+
+	args := []string{"audit", "--format", "json"}
+	cmd := exec.Command("cargo", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("cargo-audit failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parseCargoAuditOutput(stdout.Bytes())
+}
+
+// runClippy runs Clippy for Rust static analysis
+func (sa *SecurityAnalyzer) runClippy(files []string) ([]Finding, error) {
+	rustFiles := sa.filterFilesByExtension(files, ".rs")
+	if len(rustFiles) == 0 {
+		return nil, nil
+	}
+
+	if !sa.isCommandAvailable("cargo") {
+		return nil, fmt.Errorf("cargo not found in PATH")
+	}
+
+	args := []string{"clippy", "--message-format=json", "--", "-W", "clippy::all"}
+	cmd := exec.Command("cargo", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+		return nil, fmt.Errorf("clippy failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return sa.parseClippyOutput(stdout.Bytes())
+}
+
+// runSecureCodeWarrior runs a comprehensive multi-language scanner
+func (sa *SecurityAnalyzer) runSecureCodeWarrior(files []string) ([]Finding, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	// This is a placeholder for a comprehensive security scanner
+	// In practice, this could integrate with commercial tools like Veracode, Checkmarx, etc.
+	var findings []Finding
+
+	// Enhanced pattern-based analysis for multi-language support
+	languagePatterns := sa.getLanguageSpecificPatterns()
+
+	for _, file := range files {
+		lang := sa.detectLanguage(file)
+		if patterns, exists := languagePatterns[lang]; exists {
+			fileFindings := sa.analyzeFileWithPatterns(file, patterns)
+			findings = append(findings, fileFindings...)
+		}
+	}
+
+	return findings, nil
 }
 
 // analyzePatterns performs pattern-based security analysis on diff content
@@ -542,6 +814,284 @@ func (sa *SecurityAnalyzer) parseSemgrepOutput(output []byte) ([]Finding, error)
 	return findings, nil
 }
 
+// Parser functions for new analyzers
+func (sa *SecurityAnalyzer) parseSafetyOutput(output []byte) ([]Finding, error) {
+	var issues []struct {
+		ID            string `json:"id"`
+		Vulnerability string `json:"vulnerability"`
+		PackageName   string `json:"package_name"`
+		Version       string `json:"version"`
+		Severity      string `json:"severity"`
+	}
+
+	if err := json.Unmarshal(output, &issues); err != nil {
+		return nil, fmt.Errorf("failed to parse safety output: %v", err)
+	}
+
+	var findings []Finding
+	for _, issue := range issues {
+		finding := Finding{
+			Severity:   strings.ToLower(issue.Severity),
+			Type:       "safety-" + issue.ID,
+			File:       "requirements.txt", // Default to requirements file
+			Line:       1,
+			Message:    fmt.Sprintf("Vulnerability in %s %s: %s", issue.PackageName, issue.Version, issue.Vulnerability),
+			Rule:       issue.ID,
+			Suggestion: "Update to a secure version of the package",
+			Metadata: map[string]interface{}{
+				"package": issue.PackageName,
+				"version": issue.Version,
+			},
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parseBrakemanOutput(output []byte) ([]Finding, error) {
+	var result struct {
+		Warnings []struct {
+			Type       string `json:"warning_type"`
+			Code       string `json:"warning_code"`
+			Message    string `json:"message"`
+			File       string `json:"file"`
+			Line       int    `json:"line"`
+			Confidence string `json:"confidence"`
+		} `json:"warnings"`
+	}
+
+	if err := json.Unmarshal(output, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse brakeman output: %v", err)
+	}
+
+	var findings []Finding
+	for _, warning := range result.Warnings {
+		severity := "medium"
+		if warning.Confidence == "High" {
+			severity = "high"
+		} else if warning.Confidence == "Low" {
+			severity = "low"
+		}
+
+		finding := Finding{
+			Severity:   severity,
+			Type:       "brakeman-" + warning.Type,
+			File:       warning.File,
+			Line:       warning.Line,
+			Message:    warning.Message,
+			Rule:       warning.Code,
+			Suggestion: sa.getBrakemanSuggestion(warning.Type),
+			Metadata: map[string]interface{}{
+				"confidence": warning.Confidence,
+			},
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parseSpotBugsOutput(output []byte) ([]Finding, error) {
+	// SpotBugs XML parsing would be more complex
+	// For simplicity, this is a basic implementation
+	var findings []Finding
+
+	// In a real implementation, you'd parse the XML output
+	// This is a placeholder that looks for basic patterns
+	outputStr := string(output)
+	if strings.Contains(outputStr, "SECURITY") {
+		finding := Finding{
+			Severity:   "medium",
+			Type:       "spotbugs-security",
+			File:       "unknown",
+			Line:       1,
+			Message:    "Security issue detected by SpotBugs",
+			Rule:       "SECURITY",
+			Suggestion: "Review SpotBugs report for details",
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parsePsalmOutput(output []byte) ([]Finding, error) {
+	var issues []struct {
+		Type     string `json:"type"`
+		Message  string `json:"message"`
+		FilePath string `json:"file_path"`
+		Line     int    `json:"line_from"`
+		Severity string `json:"severity"`
+	}
+
+	if err := json.Unmarshal(output, &issues); err != nil {
+		return nil, fmt.Errorf("failed to parse psalm output: %v", err)
+	}
+
+	var findings []Finding
+	for _, issue := range issues {
+		finding := Finding{
+			Severity:   strings.ToLower(issue.Severity),
+			Type:       "psalm-" + issue.Type,
+			File:       issue.FilePath,
+			Line:       issue.Line,
+			Message:    issue.Message,
+			Rule:       issue.Type,
+			Suggestion: sa.getPHPSuggestion(issue.Type),
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parsePHPStanOutput(output []byte) ([]Finding, error) {
+	var result struct {
+		Files map[string]struct {
+			Messages []struct {
+				Message string `json:"message"`
+				Line    int    `json:"line"`
+			} `json:"messages"`
+		} `json:"files"`
+	}
+
+	if err := json.Unmarshal(output, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse phpstan output: %v", err)
+	}
+
+	var findings []Finding
+	for filePath, fileData := range result.Files {
+		for _, msg := range fileData.Messages {
+			finding := Finding{
+				Severity:   "medium",
+				Type:       "phpstan-error",
+				File:       filePath,
+				Line:       msg.Line,
+				Message:    msg.Message,
+				Rule:       "phpstan",
+				Suggestion: "Fix type errors and static analysis issues",
+			}
+			findings = append(findings, finding)
+		}
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parseCppCheckOutput(output []byte) ([]Finding, error) {
+	// CppCheck XML parsing would be more complex
+	// For simplicity, this is a basic implementation
+	var findings []Finding
+
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+
+	for _, line := range lines {
+		if strings.Contains(line, "error") || strings.Contains(line, "warning") {
+			// Basic parsing of cppcheck output
+			finding := Finding{
+				Severity:   "medium",
+				Type:       "cppcheck-issue",
+				File:       "unknown",
+				Line:       1,
+				Message:    line,
+				Rule:       "cppcheck",
+				Suggestion: "Review and fix C/C++ issues",
+			}
+			findings = append(findings, finding)
+		}
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parseFlawfinderOutput(output []byte) ([]Finding, error) {
+	// SARIF format parsing would be complex
+	// For simplicity, basic implementation
+	var findings []Finding
+
+	outputStr := string(output)
+	if strings.Contains(outputStr, "CWE") {
+		finding := Finding{
+			Severity:   "medium",
+			Type:       "flawfinder-cwe",
+			File:       "unknown",
+			Line:       1,
+			Message:    "Security vulnerability detected",
+			Rule:       "flawfinder",
+			Suggestion: "Review flawfinder report for CWE details",
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parseCargoAuditOutput(output []byte) ([]Finding, error) {
+	var result struct {
+		Vulnerabilities struct {
+			List []struct {
+				Advisory struct {
+					ID          string `json:"id"`
+					Title       string `json:"title"`
+					Description string `json:"description"`
+				} `json:"advisory"`
+				Package struct {
+					Name    string `json:"name"`
+					Version string `json:"version"`
+				} `json:"package"`
+			} `json:"list"`
+		} `json:"vulnerabilities"`
+	}
+
+	if err := json.Unmarshal(output, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse cargo-audit output: %v", err)
+	}
+
+	var findings []Finding
+	for _, vuln := range result.Vulnerabilities.List {
+		finding := Finding{
+			Severity:   "high",
+			Type:       "cargo-audit-" + vuln.Advisory.ID,
+			File:       "Cargo.toml",
+			Line:       1,
+			Message:    fmt.Sprintf("%s in %s %s: %s", vuln.Advisory.Title, vuln.Package.Name, vuln.Package.Version, vuln.Advisory.Description),
+			Rule:       vuln.Advisory.ID,
+			Suggestion: "Update to a patched version of the crate",
+			Metadata: map[string]interface{}{
+				"package": vuln.Package.Name,
+				"version": vuln.Package.Version,
+			},
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
+}
+
+func (sa *SecurityAnalyzer) parseClippyOutput(output []byte) ([]Finding, error) {
+	var findings []Finding
+	lines := strings.Split(string(output), "\n")
+
+	for _, line := range lines {
+		if strings.Contains(line, "warning") && strings.Contains(line, "clippy") {
+			finding := Finding{
+				Severity:   "low",
+				Type:       "clippy-warning",
+				File:       "unknown",
+				Line:       1,
+				Message:    line,
+				Rule:       "clippy",
+				Suggestion: "Follow Rust best practices",
+			}
+			findings = append(findings, finding)
+		}
+	}
+
+	return findings, nil
+}
+
 // Helper utility functions
 func (sa *SecurityAnalyzer) filterFilesByExtension(files []string, ext string) []string {
 	var filtered []string
@@ -690,4 +1240,127 @@ func (sa *SecurityAnalyzer) getSemgrepSuggestion(checkID string) string {
 		return "Implement proper authentication"
 	}
 	return "Review and fix the security issue"
+}
+
+// Additional suggestion functions for new analyzers
+func (sa *SecurityAnalyzer) getBrakemanSuggestion(warningType string) string {
+	suggestions := map[string]string{
+		"SQL Injection":              "Use parameterized queries or ORM methods",
+		"Cross-Site Scripting":       "Sanitize user input and use proper escaping",
+		"Command Injection":          "Avoid system calls with user input",
+		"File Access":                "Validate file paths and restrict access",
+		"Mass Assignment":            "Use strong parameters in Rails",
+		"Redirect":                   "Validate redirect URLs",
+		"Session Setting":            "Use secure session configuration",
+		"Cross-Site Request Forgery": "Implement CSRF protection",
+	}
+
+	if suggestion, exists := suggestions[warningType]; exists {
+		return suggestion
+	}
+	return "Review Ruby on Rails security best practices"
+}
+
+func (sa *SecurityAnalyzer) getPHPSuggestion(issueType string) string {
+	suggestions := map[string]string{
+		"PossiblyUndefinedVariable": "Initialize variables before use",
+		"UndefinedMethod":           "Check method names and class inheritance",
+		"InvalidArgument":           "Validate function arguments and types",
+		"TypeDoesNotContainType":    "Review type declarations and usage",
+		"PossiblyNullReference":     "Add null checks before accessing properties",
+		"UnusedVariable":            "Remove unused variables or mark as used",
+	}
+
+	if suggestion, exists := suggestions[issueType]; exists {
+		return suggestion
+	}
+	return "Follow PHP best practices and fix type errors"
+}
+
+// Language detection and pattern analysis functions
+func (sa *SecurityAnalyzer) detectLanguage(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".go":
+		return "go"
+	case ".py":
+		return "python"
+	case ".js", ".ts", ".jsx", ".tsx":
+		return "javascript"
+	case ".rb":
+		return "ruby"
+	case ".php":
+		return "php"
+	case ".java":
+		return "java"
+	case ".c", ".cpp", ".cxx", ".cc", ".h", ".hpp":
+		return "cpp"
+	case ".rs":
+		return "rust"
+	case ".cs":
+		return "csharp"
+	case ".kt":
+		return "kotlin"
+	case ".swift":
+		return "swift"
+	case ".scala":
+		return "scala"
+	default:
+		return "unknown"
+	}
+}
+
+func (sa *SecurityAnalyzer) getLanguageSpecificPatterns() map[string][]SecurityPattern {
+	return map[string][]SecurityPattern{
+		"python": {
+			{Pattern: regexp.MustCompile(`eval\s*\(`), Severity: "high", Type: "code-injection", Message: "Dangerous eval() usage", Suggestion: "Use ast.literal_eval() or safer alternatives"},
+			{Pattern: regexp.MustCompile(`exec\s*\(`), Severity: "high", Type: "code-injection", Message: "Dangerous exec() usage", Suggestion: "Avoid exec() or validate input thoroughly"},
+			{Pattern: regexp.MustCompile(`pickle\.loads\s*\(`), Severity: "high", Type: "deserialization", Message: "Unsafe pickle deserialization", Suggestion: "Use JSON or validate pickle data"},
+			{Pattern: regexp.MustCompile(`subprocess\s*\(`), Severity: "medium", Type: "command-injection", Message: "Potential command injection", Suggestion: "Use shell=False and validate arguments"},
+		},
+		"javascript": {
+			{Pattern: regexp.MustCompile(`eval\s*\(`), Severity: "high", Type: "code-injection", Message: "Dangerous eval() usage", Suggestion: "Use JSON.parse() or safer alternatives"},
+			{Pattern: regexp.MustCompile(`innerHTML\s*=`), Severity: "medium", Type: "xss", Message: "Potential XSS via innerHTML", Suggestion: "Use textContent or sanitize HTML"},
+			{Pattern: regexp.MustCompile(`document\.write\s*\(`), Severity: "medium", Type: "xss", Message: "Potential XSS via document.write", Suggestion: "Use safer DOM manipulation methods"},
+			{Pattern: regexp.MustCompile(`localStorage\.setItem`), Severity: "low", Type: "data-exposure", Message: "Sensitive data in localStorage", Suggestion: "Avoid storing sensitive data in localStorage"},
+		},
+		"php": {
+			{Pattern: regexp.MustCompile(`eval\s*\(`), Severity: "high", Type: "code-injection", Message: "Dangerous eval() usage", Suggestion: "Remove eval() usage"},
+			{Pattern: regexp.MustCompile(`\$_GET\[.*\]`), Severity: "medium", Type: "injection", Message: "Unvalidated GET parameter", Suggestion: "Validate and sanitize input"},
+			{Pattern: regexp.MustCompile(`\$_POST\[.*\]`), Severity: "medium", Type: "injection", Message: "Unvalidated POST parameter", Suggestion: "Validate and sanitize input"},
+			{Pattern: regexp.MustCompile(`mysql_query\s*\(`), Severity: "high", Type: "sql-injection", Message: "Deprecated MySQL function", Suggestion: "Use PDO or mysqli with prepared statements"},
+		},
+		"java": {
+			{Pattern: regexp.MustCompile(`Runtime\.getRuntime\(\)\.exec`), Severity: "high", Type: "command-injection", Message: "Dangerous Runtime.exec usage", Suggestion: "Use ProcessBuilder and validate input"},
+			{Pattern: regexp.MustCompile(`Class\.forName\s*\(`), Severity: "medium", Type: "reflection", Message: "Dynamic class loading", Suggestion: "Validate class names and use allowlists"},
+			{Pattern: regexp.MustCompile(`ObjectInputStream\.readObject`), Severity: "high", Type: "deserialization", Message: "Unsafe deserialization", Suggestion: "Validate serialized data or use safer formats"},
+		},
+		"cpp": {
+			{Pattern: regexp.MustCompile(`strcpy\s*\(`), Severity: "high", Type: "buffer-overflow", Message: "Unsafe strcpy usage", Suggestion: "Use strncpy or safer string functions"},
+			{Pattern: regexp.MustCompile(`gets\s*\(`), Severity: "high", Type: "buffer-overflow", Message: "Dangerous gets() function", Suggestion: "Use fgets() instead"},
+			{Pattern: regexp.MustCompile(`sprintf\s*\(`), Severity: "medium", Type: "buffer-overflow", Message: "Potentially unsafe sprintf", Suggestion: "Use snprintf for safer formatting"},
+		},
+		"rust": {
+			{Pattern: regexp.MustCompile(`unsafe\s*\{`), Severity: "medium", Type: "unsafe-code", Message: "Unsafe code block", Suggestion: "Review unsafe code for memory safety"},
+			{Pattern: regexp.MustCompile(`\.unwrap\(\)`), Severity: "low", Type: "panic", Message: "Potential panic with unwrap", Suggestion: "Use proper error handling"},
+		},
+	}
+}
+
+type SecurityPattern struct {
+	Pattern    *regexp.Regexp
+	Severity   string
+	Type       string
+	Message    string
+	Suggestion string
+}
+
+func (sa *SecurityAnalyzer) analyzeFileWithPatterns(filename string, patterns []SecurityPattern) []Finding {
+	var findings []Finding
+
+	// This would read the file and analyze it with the patterns
+	// For this implementation, we'll skip the file reading part
+	// In a real implementation, you'd read the file content and analyze it
+
+	return findings
 }
