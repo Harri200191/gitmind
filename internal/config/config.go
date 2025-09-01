@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -62,25 +63,30 @@ func defaultConfig() Config {
 		Prompt:          Prompt{Preface: "You are an assistant that writes precise Git commit messages.", Rules: "- Prefer imperative mood\n- Keep subject ≤ 72 chars"},
 		MultiCommit:     MultiCommit{Enabled: false, MaxClusters: 3, SimilarityThreshold: 0.7, PromptUser: true},
 		TestGeneration:  TestGeneration{Enabled: false, Frameworks: []string{"testing"}, OutputDir: ".", AutoStage: false},
-		Security:        Security{Enabled: false, Analyzers: []string{"gosec"}, BlockOnHigh: false, IncludeInMsg: true},
+		Security:        Security{Enabled: false, Analyzers: []string{"gosec", "bandit", "eslint-security", "semgrep", "safety", "brakeman", "cppcheck", "cargo-audit"}, BlockOnHigh: false, IncludeInMsg: true},
 	}
 }
 
 func Load() Config {
 	cfg := defaultConfig()
-	// repo-level overrides
+
 	if loadYAML(".gitmind.yaml", &cfg) == nil {
+		fmt.Println("Loaded configuration from .gitmind.yaml")
 		return cfg
 	}
-	// try the old name for backwards compatibility
+
 	if loadYAML(".gitmind.yaml", &cfg) == nil {
+		fmt.Println("Loaded configuration from $HOME/.gitmind.yaml")
 		return cfg
 	}
-	// home-level
+
 	if home, err := os.UserHomeDir(); err == nil {
 		_ = loadYAML(filepath.Join(home, ".gitmind.yaml"), &cfg)
 		_ = loadYAML(filepath.Join(home, ".gitmind.yaml"), &cfg)
 	}
+
+	fmt.Println("Using default configuration")
+
 	return cfg
 }
 
