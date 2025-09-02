@@ -188,8 +188,6 @@ func (sa *SecurityAnalyzer) runGosec(files []string) ([]Finding, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	fmt.Println("Raw gosec output:\n", stdout.String())
-
 	if err := cmd.Run(); err != nil {
 		if stdout.Len() == 0 {
 			return nil, fmt.Errorf("gosec failed: %v, stderr: %s", err, stderr.String())
