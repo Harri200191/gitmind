@@ -9,7 +9,16 @@ GitMind is a powerful Go-based CLI tool that revolutionizes your Git workflow by
 ## ✨ Key Features
 
 - 🤖 **Smart Commit Message Generation** - AI-powered messages using local LLMs (Ollama)
-- 🔒 **Multi-Language Security Analysis** - Support for 10+ languages (Go, Python, JS/TS, Ruby, Java, PHP, C/C++, Rust, etc.)
+- 🔒 **Multi-Language Security Analysis** - Support for 10+ languages with comprehensive analyzers:
+  - **Go**: gosec for security vulnerabilities
+  - **Python**: bandit + safety for code & dependency security
+  - **JavaScript/TypeScript**: eslint-security for web vulnerabilities
+  - **Ruby**: brakeman for Rails security issues
+  - **Java**: spotbugs for comprehensive bug detection
+  - **PHP**: psalm + phpstan for type safety & security
+  - **C/C++**: cppcheck + flawfinder for memory safety
+  - **Rust**: cargo-audit + clippy for safety & best practices
+  - **Multi-language**: semgrep for OWASP Top 10 & custom rules
 - 🧪 **Automated Test Generation** - Generate skeleton unit tests for changed functions
 - 🔄 **Multi-Commit Splitting** - Intelligently split large commits into focused, atomic changes
 - ⚡ **Lightning Fast** - Local processing with sub-second response times
@@ -17,11 +26,49 @@ GitMind is a powerful Go-based CLI tool that revolutionizes your Git workflow by
 - 🎯 **Git Hook Integration** - Seamless integration with your existing Git workflow
 - 📝 **Configurable Styles** - Conventional Commits, custom templates, and more
 - 🛡️ **Heuristic Fallback** - Works even without LLM configuration
+- 🛠️ **Enhanced Multi-Commit** - Fixed git stash issues with robust fallback mechanisms
+
+---
+
+## 🆕 What's New in v1.2
+
+### 💪 Enhanced Multi-Language Security Analysis
+- **10+ Languages Supported**: Go, Python, JavaScript/TypeScript, Ruby, Java, PHP, C/C++, Rust
+- **14 Security Analyzers**: gosec, bandit, safety, eslint-security, brakeman, spotbugs, psalm, phpstan, cppcheck, flawfinder, cargo-audit, clippy, semgrep, securecodewarrior
+- **Advanced Pattern Detection**: OWASP Top 10, hardcoded secrets, SQL injection, XSS, buffer overflows
+- **Configurable Blocking**: Option to block commits on high-severity issues
+- **Smart Commit Integration**: Security notes automatically added to commit messages
+
+### 🛠️ Robust Multi-Commit Splitting
+- **Fixed Git Stash Issues**: Resolved exit status 129 errors with binary files and file conflicts
+- **Dual Fallback Strategy**: Primary git stash with automatic temporary commit fallback
+- **Enhanced File Handling**: Proper support for deleted files, binary files, and renames
+- **Error Recovery**: Automatic staging area restoration on commit failures
+- **Git Notes Integration**: Metadata tracking for reliable state restoration
+
+### 📖 Comprehensive Command Options
+- **Hidden Flags Documented**: All `--block`, `--verbose`, `--interactive`, `--stage`, `--output` options
+- **Boolean Flag Support**: Explicit true/false syntax for all commands
+- **Flexible Configuration**: Override config settings via command-line flags
+- **Exit Code Standardization**: Proper exit codes for CI/CD integration
+
+### 📊 Improved Configuration
+- **Multi-Analyzer Support**: Configure multiple security analyzers per language
+- **Granular Control**: Enable/disable specific analyzers based on project needs
+- **Team-Friendly Defaults**: Optimized configurations for different team sizes
+- **Enterprise Security**: High-security configuration templates
+
+### 🔧 Developer Experience
+- **Better Error Messages**: Clear explanations when analyzers are missing
+- **Installation Guides**: Step-by-step setup for all security analyzers
+- **Real-World Examples**: Comprehensive usage scenarios and workflows
+- **Performance Optimizations**: Faster analysis with concurrent analyzer execution
 
 ---
 
 ## 📋 Table of Contents
 
+- [What's New in v1.2](#whats-new-in-v11)
 - [Quick Start](#quick-start)
 - [Detailed Installation](#detailed-installation)
   - [Prerequisites](#prerequisites)
@@ -36,6 +83,7 @@ GitMind is a powerful Go-based CLI tool that revolutionizes your Git workflow by
   - [Basic Usage](#basic-usage)
   - [Advanced Features](#advanced-features)
   - [Real-World Scenarios](#real-world-scenarios)
+- [Command Reference](#command-reference)
 - [Multi-Language Security Analysis](#multi-language-security-analysis)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#frequently-asked-questions)
@@ -399,11 +447,16 @@ model:
   model_path: "codellama:7b"
 security:
   enabled: true
-  analyzers: ["gosec", "bandit", "eslint-security"]
+  analyzers: ["gosec", "bandit", "eslint-security", "semgrep"]
   block_on_high: true
+  include_in_msg: false
+multi_commit:
+  enabled: true
+  max_clusters: 3
 test_generation:
   enabled: true
   auto_stage: true
+  output_dir: "tests/"
 ```
 
 **Enterprise (High Security):**
@@ -416,15 +469,34 @@ model:
   temperature: 0.1
 security:
   enabled: true
-  analyzers: ["gosec", "bandit", "eslint-security", "brakeman", "semgrep", "safety"]
+  # Comprehensive multi-language analyzer suite
+  analyzers: [
+    "gosec",           # Go security
+    "bandit",          # Python security
+    "safety",          # Python dependencies
+    "eslint-security",  # JavaScript/TypeScript
+    "brakeman",        # Ruby on Rails
+    "spotbugs",        # Java
+    "psalm",           # PHP static analysis
+    "phpstan",         # PHP type checking
+    "cppcheck",        # C/C++ static analysis
+    "flawfinder",      # C/C++ security
+    "cargo-audit",     # Rust dependencies
+    "clippy",          # Rust best practices
+    "semgrep",         # Multi-language patterns
+    "securecodewarrior" # Enterprise patterns
+  ]
   block_on_high: true
   include_in_msg: true
 multi_commit:
   enabled: true
   prompt_user: true
+  max_clusters: 5
+  similarity_threshold: 0.8
 test_generation:
   enabled: true
   frameworks: ["testing", "testify"]
+  auto_stage: false
 ```
 
 ---
@@ -522,6 +594,29 @@ gitmind multi-commit
 
 # Interactive mode for fine-tuning
 gitmind multi-commit --interactive
+```
+
+**🛠️ Multi-Commit Improvements (v1.2+):**
+GitMind now includes enhanced multi-commit functionality with robust error handling:
+
+- **Fixed Git Stash Issues**: Resolved exit status 129 errors when dealing with binary files, missing files, or conflicts between staging area and working directory
+- **Dual Fallback Strategy**: 
+  - Primary: Uses `git stash push --staged` for clean operations
+  - Fallback: Creates temporary commits with git notes metadata when stash fails
+- **Enhanced File Handling**: Properly handles deleted files, binary files, and file renames
+- **Improved Error Recovery**: Automatic restoration of staging area if any commit fails
+- **Better Conflict Resolution**: Graceful handling of files that exist in staging but not working directory
+
+```bash
+# The multi-commit process is now more robust:
+git add .
+gitmind multi-commit
+
+# If stash fails, GitMind automatically:
+# 1. Creates a temporary commit to save staged changes
+# 2. Uses git notes to track the temporary commit
+# 3. Restores changes via cherry-pick when needed
+# 4. Cleans up temporary metadata automatically
 ```
 
 **3. Test Generation**
@@ -670,25 +765,265 @@ git commit
 
 ---
 
+## 📖 Command Reference
+
+GitMind provides several commands with various options for different workflows:
+
+### Core Commands
+
+**`gitmind install-hook`**
+```bash
+gitmind install-hook
+# Install prepare-commit-msg hook in current repository
+# No additional options
+```
+
+**`gitmind uninstall-hook`**
+```bash
+gitmind uninstall-hook
+# Remove prepare-commit-msg hook from current repository
+# No additional options
+```
+
+**`gitmind doctor`**
+```bash
+gitmind doctor
+# Check LLM and configuration status
+# No additional options
+# Output: Configuration, LLM provider, model, and repository status
+```
+
+**`gitmind version`**
+```bash
+gitmind version
+# Display GitMind version information
+# Aliases: gitmind -v, gitmind --version
+```
+
+### Advanced Commands
+
+**`gitmind generate`** (Internal use by Git hook)
+```bash
+gitmind generate -f <path> [--suggest-tests]
+
+Options:
+  -f <path>           Path to commit message file (required, provided by Git)
+  --suggest-tests     Generate unit tests for changed functions (default: false)
+
+Example:
+  gitmind generate -f .git/COMMIT_EDITMSG --suggest-tests
+```
+
+**`gitmind multi-commit`**
+```bash
+gitmind multi-commit [--interactive=true|false]
+
+Options:
+  --interactive       Enable interactive mode for editing proposals (default: true)
+
+Examples:
+  gitmind multi-commit                    # Interactive mode (default)
+  gitmind multi-commit --interactive=false    # Auto-apply without prompts
+  gitmind multi-commit --interactive=true     # Explicit interactive mode
+```
+
+**`gitmind suggest-tests`**
+```bash
+gitmind suggest-tests [--output=<dir>] [--stage]
+
+Options:
+  --output <dir>      Output directory for test files (default: ".")
+  --stage            Automatically stage generated test files (default: false)
+
+Examples:
+  gitmind suggest-tests                           # Generate tests in current directory
+  gitmind suggest-tests --output tests/           # Generate in tests/ directory
+  gitmind suggest-tests --stage                   # Generate and auto-stage files
+  gitmind suggest-tests --output tests/ --stage   # Combined options
+```
+
+**`gitmind security-check`**
+```bash
+gitmind security-check [--block=true|false] [--verbose=true|false]
+
+Options:
+  --block            Block if high-severity issues found (default: true)
+  --verbose          Show detailed findings (default: true)
+
+Examples:
+  gitmind security-check                          # Default: blocking, verbose
+  gitmind security-check --block=false            # Don't block on high-severity
+  gitmind security-check --verbose=false          # Show summary only
+  gitmind security-check --block=false --verbose=false  # Non-blocking, summary only
+```
+
+### Command Option Details
+
+**Boolean Flags Syntax:**
+GitMind supports both explicit and implicit boolean flags:
+```bash
+# These are equivalent:
+gitmind multi-commit --interactive
+gitmind multi-commit --interactive=true
+
+# To disable:
+gitmind multi-commit --interactive=false
+gitmind multi-commit --no-interactive  # Not supported, use =false
+```
+
+**Hidden Options Discovery:**
+To see all available options for any command:
+```bash
+gitmind <command> --help
+# Unfortunately, --help is not implemented yet
+# Use this reference or check the source code
+```
+
+### Exit Codes
+
+| Exit Code | Meaning |
+|-----------|----------|
+| 0 | Success |
+| 1 | General error or high-severity security issues (when --block=true) |
+| 2 | Invalid command or usage |
+
+### Examples by Use Case
+
+**Security-First Development:**
+```bash
+# Stage changes
+git add .
+
+# Run comprehensive security check
+gitmind security-check --verbose=true --block=true
+
+# If security check passes, commit
+git commit  # GitMind hook generates message
+```
+
+**Rapid Prototyping:**
+```bash
+# Stage changes
+git add .
+
+# Non-blocking security check
+gitmind security-check --block=false
+
+# Generate tests
+gitmind suggest-tests --stage
+
+# Commit everything
+git commit
+```
+
+**Large Feature Development:**
+```bash
+# Stage all changes
+git add .
+
+# Split into logical commits
+gitmind multi-commit --interactive=true
+
+# For each commit, optionally:
+gitmind suggest-tests --output tests/
+gitmind security-check
+```
+
+**CI/CD Pipeline Integration:**
+```bash
+# Non-interactive, fail on security issues
+gitmind security-check --block=true --verbose=false
+
+# Auto-generate tests without staging
+gitmind suggest-tests --output tests/
+
+# Non-interactive multi-commit
+gitmind multi-commit --interactive=false
+```
+
+---
+
 ## 🔐 Multi-Language Security Analysis
 
-GitMind includes comprehensive security analysis for multiple programming languages:
+GitMind provides comprehensive security analysis for 10+ programming languages with enhanced multi-language support:
 
-### Supported Languages & Analyzers
+### 🌐 Supported Languages & Analyzers
 
-| Language | Analyzers | Detects |
-|----------|-----------|----------|
-| **Go** | gosec | Hardcoded credentials, unsafe operations, weak crypto |
-| **Python** | bandit, safety | SQL injection, code injection, dependency vulnerabilities |
-| **JavaScript/TypeScript** | eslint-security | XSS, eval usage, object injection |
-| **Ruby** | brakeman | Rails security issues, SQL injection, CSRF |
-| **Java** | spotbugs | Security bugs, performance issues |
-| **PHP** | psalm, phpstan | Type errors, security vulnerabilities |
-| **C/C++** | cppcheck, flawfinder | Buffer overflows, format string vulnerabilities |
-| **Rust** | cargo-audit, clippy | Dependency vulnerabilities, unsafe patterns |
-| **Multi-Language** | semgrep | OWASP Top 10, custom security rules |
+| Language | Analyzers | Detects | Status |
+|----------|-----------|---------|--------|
+| **Go** | gosec | Hardcoded credentials, unsafe operations, weak crypto | ✅ Full Support |
+| **Python** | bandit, safety | SQL injection, code injection, dependency vulnerabilities | ✅ Full Support |
+| **JavaScript/TypeScript** | eslint-security | XSS, eval usage, object injection, DOM manipulation | ✅ Full Support |
+| **Ruby** | brakeman | Rails security issues, SQL injection, CSRF, mass assignment | ✅ Full Support |
+| **Java** | spotbugs | Security bugs, performance issues, null pointer dereference | ✅ Full Support |
+| **PHP** | psalm, phpstan | Type errors, security vulnerabilities, code quality | ✅ Full Support |
+| **C/C++** | cppcheck, flawfinder | Buffer overflows, format string vulnerabilities, memory leaks | ✅ Full Support |
+| **Rust** | cargo-audit, clippy | Dependency vulnerabilities, unsafe patterns, borrowing issues | ✅ Full Support |
+| **Multi-Language** | semgrep, securecodewarrior | OWASP Top 10, custom security rules, pattern matching | ✅ Full Support |
 
-### Security Analysis Examples
+### 🔧 Security Analysis Installation
+
+To use security analysis, install the required analyzers:
+
+**Go (gosec):**
+```bash
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+```
+
+**Python (bandit, safety):**
+```bash
+pip install bandit safety
+```
+
+**JavaScript/TypeScript (ESLint with security plugins):**
+```bash
+npm install -g eslint
+npm install -g eslint-plugin-security
+```
+
+**Ruby (brakeman):**
+```bash
+gem install brakeman
+```
+
+**Java (SpotBugs):**
+```bash
+# Download from https://spotbugs.github.io/
+# Or via package manager:
+sudo apt install spotbugs  # Ubuntu
+brew install spotbugs       # macOS
+```
+
+**PHP (Psalm, PHPStan):**
+```bash
+composer global require vimeo/psalm
+composer global require phpstan/phpstan
+```
+
+**C/C++ (CppCheck, Flawfinder):**
+```bash
+# Ubuntu/Debian
+sudo apt install cppcheck flawfinder
+
+# macOS
+brew install cppcheck flawfinder
+
+# Windows
+choco install cppcheck
+```
+
+**Rust (cargo-audit, clippy):**
+```bash
+cargo install cargo-audit
+rustup component add clippy
+```
+
+**Multi-language (Semgrep):**
+```bash
+pip install semgrep
+```
+
+### 📊 Security Analysis Examples
 
 **Detecting Hardcoded Secrets:**
 ```python
@@ -832,6 +1167,45 @@ model:
 # Use CPU-optimized settings
 model:
   n_threads: 4    # Use fewer CPU threads
+```
+
+**6. Command-Line Option Issues**
+```bash
+# If boolean flags don't work as expected
+gitmind security-check --block=true    # Use explicit syntax
+gitmind multi-commit --interactive=false
+
+# Check available options for any command
+# (Currently no --help flag, refer to Command Reference section)
+
+# Exit code meanings:
+# 0 = Success
+# 1 = Error or high-severity security issues
+# 2 = Invalid command usage
+
+# Test command options
+gitmind security-check --verbose=false --block=false
+gitmind suggest-tests --output ./tests --stage
+gitmind multi-commit --interactive=true
+```
+
+**7. Multi-Commit Git Stash Issues (Fixed in v1.2)**
+```bash
+# If you encounter "exit status 129" errors (mostly resolved)
+# GitMind now automatically handles:
+# - Binary files in staging area
+# - Missing files (staged but deleted in working directory)
+# - File renames and moves
+# - Conflicts between index and working tree
+
+# If issues persist, check:
+git status                    # Look for conflicting states
+git stash list               # Check for existing stashes
+git notes show HEAD 2>/dev/null  # Check for GitMind temp notes
+
+# Manual cleanup if needed:
+git stash drop "gitmind-multi-commit-temp"
+git notes remove HEAD
 ```
 
 ### Debug Mode
