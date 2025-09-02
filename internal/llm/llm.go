@@ -27,11 +27,6 @@ func Doctor(cfg config.Config) (bool, string) {
 			return false, "model_path not set for Ollama"
 		}
 		return true, fmt.Sprintf("Ollama: %s", cfg.Model.ModelPath)
-	case "llama.cpp":
-		if cfg.Model.ModelPath == "" {
-			return false, "model_path not set"
-		}
-		return true, fmt.Sprintf("llama.cpp: %s", cfg.Model.ModelPath)
 	default:
 		return false, fmt.Sprintf("unsupported provider: %s", cfg.Model.Provider)
 	}
