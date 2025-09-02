@@ -145,25 +145,23 @@ git commit  # GitMind generates the message!
 
 **Download pre-built binaries for your platform:**
 
+ 
+
 ```bash
 # Linux x64
-wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind-linux-amd64.tar.gz
-tar -xzf gitmind-linux-amd64.tar.gz
-sudo mv gitmind /usr/local/bin/
+wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind
 
-# macOS (Intel)
-wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind-darwin-amd64.tar.gz
-tar -xzf gitmind-darwin-amd64.tar.gz
-sudo mv gitmind /usr/local/bin/
+# AMD64
+wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind-bin_amd64.deb 
 
-# macOS (Apple Silicon)
-wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind-darwin-arm64.tar.gz
-tar -xzf gitmind-darwin-arm64.tar.gz
-sudo mv gitmind /usr/local/bin/
+# ARM
+wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind_arm.deb 
+
+# ARM64
+wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind_arm64.deb
 
 # Windows
-# Download gitmind-windows-amd64.zip from releases
-# Extract to C:\Program Files\gitmind\ or add to PATH
+wget https://github.com/Harri200191/gitmind/releases/latest/download/gitmind.exe
 ```
 
 **Verify installation:**

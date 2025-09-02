@@ -5,7 +5,7 @@ max_summary_lines: 15
 model:
   enabled: true  # Enable the model
   provider: ollama  # Use Ollama instead of llama.cpp
-  model_path: "gpt-oss:20b"  # Your Ollama model name
+  model_path: "llama2:7b"
   n_ctx: 8192
   n_threads: 6
   temperature: 0.2
