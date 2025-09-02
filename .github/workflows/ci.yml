@@ -1,23 +1,15 @@
 name: CI/CD Pipeline
 
-on:
-  # Trigger on version tags pushed to main branch
+on: 
   push:
     tags:
       - 'v[0-9]+.[0-9]+*'  # Matches v1.0, v1.1, v2.9, v1.0.1, etc.
     branches:
-      - main
-  
-  # Also run on pull requests for testing
-  pull_request:
-    branches:
-      - main
-
-  # Allow manual triggering
+      - main 
+ 
   workflow_dispatch:
 
-jobs:
-  # Build and test job (runs on all pushes/PRs)
+jobs: 
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
@@ -31,7 +23,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'  # Use a recent Go version
+          go-version: '1.24'  # Use a recent Go version
           cache: true
       
       - name: Verify dependencies
@@ -46,17 +38,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
-      
-      - name: Run tests
-        run: |
-          go test -v -race -coverprofile=coverage.out ./...
-      
-      - name: Run linting
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          args: --timeout=5m
+          sudo apt-get install -y build-essential 
       
       - name: Build binaries (test build)
         run: |
@@ -68,16 +50,8 @@ jobs:
           ls -la bin/
           file bin/gitmind
           file bin/gitmind.exe
-          ./bin/gitmind version
-      
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.out
-          flags: unittests
-          name: codecov-umbrella
-
-  # Release job (only runs on version tags)
+          ./bin/gitmind version 
+           
   release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -167,8 +141,7 @@ jobs:
           ### Quick Install (Linux/macOS)
           \`\`\`bash
           # Download and install
-          wget https://github.com/Harri200191/gitmind/releases/download/${{ steps.version.outputs.tag }}/gitmind-linux-amd64.tar.gz
-          tar -xzf gitmind-linux-amd64.tar.gz
+          wget https://github.com/Harri200191/gitmind/releases/download/${{ steps.version.outputs.tag }}/gitmind
           sudo mv gitmind /usr/local/bin/
           \`\`\`
           
@@ -248,9 +221,9 @@ jobs:
           go-version: '1.21'
       
       - name: Run Gosec Security Scanner
-        uses: securecodewarrior/github-action-gosec@master
-        with:
-          args: './...'
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec ./...
       
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master

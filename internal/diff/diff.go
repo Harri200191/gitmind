@@ -2,6 +2,7 @@ package diff
 
 import (
 	"bytes"
+	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -73,7 +74,7 @@ func summarizeFiles(files []string) string {
 	if len(files) == 2 {
 		return "update " + files[0] + ", " + files[1]
 	}
-	return "update " + files[0] + " and " + string(len(files)-1+'0') + " more files"
+	return "update " + files[0] + " and " + fmt.Sprintf("%d", len(files)-1) + " more files"
 }
 
 func summarizeHunks(d string, maxLines int) string {
