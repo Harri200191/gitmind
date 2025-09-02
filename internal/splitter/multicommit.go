@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/Harri200191/gitmind/internal/config"
@@ -198,17 +200,28 @@ func (mcm *MultiCommitManager) stashCurrentChanges() error {
 		return nil
 	}
 
-	// Try to stash staged changes only first
-	cmd = exec.Command("git", "stash", "push", "--staged", "--message", "gitmind-multi-commit-temp")
-	output, err := cmd.CombinedOutput()
+	// Check Git version to see if --staged is supported
+	cmd = exec.Command("git", "--version")
+	versionOutput, err := cmd.Output()
 	if err != nil {
-		// If stash fails, try alternative approach: save index to temporary branch
-		fmt.Printf("Stash failed, using temporary branch approach: %s\n", string(output))
+		// If version check fails, fall back immediately
+		fmt.Println("Git version check failed, using temporary commit fallback")
 		return mcm.stashUsingTempBranch()
 	}
 
-	fmt.Printf("Stashed changes successfully\n")
-	return nil
+	versionStr := string(versionOutput)
+	if mcm.isGitVersionSupported(versionStr, 2, 35, 0) {
+		// Modern approach with --staged
+		cmd = exec.Command("git", "stash", "push", "--staged", "--message", "gitmind-multi-commit-temp")
+		if err := cmd.Run(); err == nil {
+			fmt.Printf("Stashed staged changes successfully\n")
+			return nil
+		}
+		fmt.Println("Stash with --staged failed, falling back to temp commit")
+	}
+
+	// Fallback for older Git versions or if stash failed
+	return mcm.stashUsingTempBranch()
 }
 
 // stashUsingTempBranch creates a temporary commit to save current state
@@ -243,16 +256,19 @@ func (mcm *MultiCommitManager) stashUsingTempBranch() error {
 
 // restoreChanges restores the staging area from stash or temp commit
 func (mcm *MultiCommitManager) restoreChanges() error {
-	// First try to pop stash if it exists
+	// First try to pop stash if it exists (for Git 2.35.0+)
 	cmd := exec.Command("git", "stash", "list")
 	output, err := cmd.Output()
 	if err == nil && strings.Contains(string(output), "gitmind-multi-commit-temp") {
 		// Stash exists, pop it
 		cmd = exec.Command("git", "stash", "pop")
-		return cmd.Run()
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+		// If pop fails, continue to try temp commit approach
 	}
 
-	// Check if we have temp commit info in git notes
+	// Check if we have temp commit info in git notes (fallback approach)
 	cmd = exec.Command("git", "notes", "show", "HEAD")
 	notesOutput, err := cmd.Output()
 	if err == nil && strings.Contains(string(notesOutput), "gitmind-temp-commit:") {
@@ -423,4 +439,32 @@ func unique(items []string) []string {
 		}
 	}
 	return result
+}
+
+// isGitVersionSupported checks if Git version supports a specific feature
+func (mcm *MultiCommitManager) isGitVersionSupported(versionStr string, major, minor, patch int) bool {
+	// Extract version from "git version X.Y.Z" format
+	re := regexp.MustCompile(`git version (\d+)\.(\d+)\.(\d+)`)
+	matches := re.FindStringSubmatch(versionStr)
+	if len(matches) < 4 {
+		return false // Can't parse version, assume not supported
+	}
+
+	gitMajor, _ := strconv.Atoi(matches[1])
+	gitMinor, _ := strconv.Atoi(matches[2])
+	gitPatch, _ := strconv.Atoi(matches[3])
+
+	// Compare versions
+	if gitMajor > major {
+		return true
+	}
+	if gitMajor == major {
+		if gitMinor > minor {
+			return true
+		}
+		if gitMinor == minor && gitPatch >= patch {
+			return true
+		}
+	}
+	return false
 }
