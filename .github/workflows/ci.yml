@@ -1,0 +1,267 @@
+name: CI/CD Pipeline
+
+on:
+  # Trigger on version tags pushed to main branch
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+*'  # Matches v1.0, v1.1, v2.9, v1.0.1, etc.
+    branches:
+      - main
+  
+  # Also run on pull requests for testing
+  pull_request:
+    branches:
+      - main
+
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  # Build and test job (runs on all pushes/PRs)
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for proper versioning
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'  # Use a recent Go version
+          cache: true
+      
+      - name: Verify dependencies
+        run: |
+          go mod verify
+          go mod tidy
+          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+            echo "go.mod or go.sum is not up to date"
+            exit 1
+          fi
+      
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+      
+      - name: Run tests
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+      
+      - name: Run linting
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
+      
+      - name: Build binaries (test build)
+        run: |
+          make clean
+          make all
+      
+      - name: Verify binaries
+        run: |
+          ls -la bin/
+          file bin/gitmind
+          file bin/gitmind.exe
+          ./bin/gitmind version
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+
+  # Release job (only runs on version tags)
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    # Only run on version tags pushed to main
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.ref_name != 'main'
+    
+    permissions:
+      contents: write  # Required for creating releases
+      packages: write  # For potential future package publishing
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: true
+      
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential dpkg-dev
+      
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Extract version from tag (e.g., v1.2 -> 1.2)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "release_name=Version $VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+      
+      - name: Update Makefile version
+        run: |
+          # Update VERSION in Makefile to match tag
+          sed -i "s/^VERSION := .*/VERSION := ${{ steps.version.outputs.version }}/" Makefile
+          echo "Updated Makefile version to ${{ steps.version.outputs.version }}"
+          grep "^VERSION" Makefile
+      
+      - name: Build all release artifacts
+        run: |
+          echo "🏗️ Building GitMind ${{ steps.version.outputs.version }}"
+          make clean
+          make all
+          
+          # Verify all expected artifacts were created
+          echo "📦 Verifying build artifacts:"
+          ls -la bin/
+          
+          # Test binaries
+          echo "🧪 Testing binaries:"
+          ./bin/gitmind version
+          
+          # Create release archives
+          echo "📦 Creating release archives:"
+          cd bin/
+          
+          # Linux archive
+          tar -czf gitmind-linux-amd64.tar.gz gitmind
+          
+          # Windows archive  
+          zip gitmind-windows-amd64.zip gitmind.exe
+          
+          # List final artifacts
+          ls -la
+          cd ..
+      
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Create release notes
+          cat > release_notes.md << EOF
+          # GitMind ${{ steps.version.outputs.version }}
+          
+          ## 🎉 What's New
+          
+          This release includes the latest features and improvements to GitMind.
+          
+          ## 📦 Installation
+          
+          ### Quick Install (Linux/macOS)
+          \`\`\`bash
+          # Download and install
+          wget https://github.com/Harri200191/gitmind/releases/download/${{ steps.version.outputs.tag }}/gitmind-linux-amd64.tar.gz
+          tar -xzf gitmind-linux-amd64.tar.gz
+          sudo mv gitmind /usr/local/bin/
+          \`\`\`
+          
+          ### Windows
+          1. Download \`gitmind-windows-amd64.zip\`
+          2. Extract \`gitmind.exe\` to your PATH
+          3. Run \`gitmind version\` to verify
+          
+          ### Debian/Ubuntu
+          \`\`\`bash
+          wget https://github.com/Harri200191/gitmind/releases/download/${{ steps.version.outputs.tag }}/gitmind_amd64.deb
+          sudo dpkg -i gitmind_amd64.deb
+          \`\`\`
+          
+          ## ✨ Key Features
+          
+          - 🤖 **Smart Commit Message Generation** - AI-powered messages using local LLMs
+          - 🔒 **Multi-Language Security Analysis** - Support for 10+ languages
+          - 🧪 **Automated Test Generation** - Generate skeleton unit tests
+          - 🔄 **Multi-Commit Splitting** - Intelligently split large commits
+          - ⚡ **Lightning Fast** - Local processing with sub-second response times
+          - 🔐 **Privacy First** - Your code never leaves your machine
+          
+          ## 🔧 System Requirements
+          
+          - **OS**: Linux, macOS, Windows
+          - **RAM**: 4GB+ recommended (depends on LLM model size)
+          - **Git**: Version 2.10 or higher
+          
+          For detailed installation and usage instructions, see the [README](https://github.com/Harri200191/gitmind#readme).
+          EOF
+          
+          echo "Generated release notes:"
+          cat release_notes.md
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.version.outputs.release_name }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          make_latest: true  # Mark as latest release
+          files: |
+            bin/gitmind-linux-amd64.tar.gz
+            bin/gitmind-windows-amd64.zip
+            bin/gitmind
+            bin/gitmind.exe
+            bin/gitmind_amd64.deb
+            bin/gitmind_arm.deb
+            bin/gitmind_arm64.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Release Summary
+        run: |
+          echo "🎉 Successfully released GitMind ${{ steps.version.outputs.version }}!"
+          echo "📦 Release URL: https://github.com/Harri200191/gitmind/releases/tag/${{ steps.version.outputs.tag }}"
+          echo "🏷️ Tag: ${{ steps.version.outputs.tag }}"
+          echo "📝 Release Name: ${{ steps.version.outputs.release_name }}"
+          echo "🔗 Download: https://github.com/Harri200191/gitmind/releases/latest"
+
+  # Security scanning job
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Run Gosec Security Scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: './...'
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
